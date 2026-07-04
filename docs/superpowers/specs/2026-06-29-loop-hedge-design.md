@@ -66,7 +66,7 @@ Eight services wired via Redis pub/sub and a shared Postgres for structured stat
 ### 3.2 Service responsibilities
 
 - **data-ingestor** — Pulls Binance klines + websocket stream. Normalizes, dedupes, writes to Postgres `bars` table. Publishes `bar.closed` events to Redis. **No LLM.**
-- **executor** — Subscribes to `signal.verified`. Places orders against the configured venue (`simulator` or `binance_testnet`). Enforces per-trade and per-strategy hard caps pre-trade. Updates `fills` and `positions`. **No LLM.**
+- **executor** — Subscribes to `signal.verified`. Places live orders against the configured live venue (`simulator` or `binance_testnet`, toggled by env var). Enforces per-trade and per-strategy hard caps pre-trade. Updates `fills` and `positions`. **No LLM.** Note: backtests run by the checker and genesis agents always use the in-process simulator regardless of the live venue setting — backtests are historical replay, not order placement.
 - **maker-agent** — Triggers every N bars (default 15 minutes). Reads `skills/alpha_research.md` and active strategies, emits candidate signals to Redis. **Sonnet.**
 - **checker-agent** — Triggers per `signal.candidate` event. Independently re-runs a walk-forward backtest using `skills/backtest_verification.md`. Never sees the maker's reasoning trace. Emits `signal.verified` or `signal.rejected`. **Opus** (different model architecture catches different errors).
 - **strategy-genesis-agent** — Triggers hourly. Reads recent PnL + lessons, either tunes hyperparameters of active strategies or proposes new strategy code into `strategies/pending/`. Promotions to `strategies/active/` require checker sign-off plus 30 days of paper-trading. **Opus.**
@@ -235,7 +235,7 @@ The end-to-end replay test is the load-bearing one — it is how we know the sys
 - **Phase 2 — Maker + Checker only (3–4 days):** wire in Claude Agent SDK. Single hardcoded momentum strategy. Verify maker emits, checker filters, executor fills. Lessons append on rejections.
 - **Phase 3 — Hyperparameter tuning (2 days):** genesis agent, but tuning only. Verify it can improve a strategy's Sharpe without breaking risk rules.
 - **Phase 4 — Strategy genesis (3–5 days):** genesis agent proposes new strategy code; runs through `pending/` → `active/` promotion gate.
-- **Phase 5 — Binance testnet integration (1–2 days):** flip executor venue from self-sim to testnet. Run paper-live.
+- **Phase 5 — Binance testnet integration (1–2 days):** flip the executor's *live* venue from self-sim to testnet (backtests stay on self-sim). Run paper-live.
 
 Phases 1 → 2 → 3 ship in order; Phase 4 only after 1–3 are battle-tested.
 
