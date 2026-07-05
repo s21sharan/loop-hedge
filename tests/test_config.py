@@ -1,4 +1,3 @@
-import os
 from loophedge.config import Settings
 
 
