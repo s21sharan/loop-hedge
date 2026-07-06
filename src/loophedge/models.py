@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal
 
 from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, Numeric, String
@@ -30,7 +30,7 @@ class Signal(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True,
                                     default=lambda: str(uuid.uuid4()))
     ts_created: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=lambda: datetime.now())
+        DateTime(timezone=True), default=lambda: datetime.now(UTC))
     strategy_id: Mapped[str] = mapped_column(String(64))
     symbol: Mapped[str] = mapped_column(String(20))
     side: Mapped[str] = mapped_column(String(8))     # long | short | flat
