@@ -40,6 +40,9 @@ where = ["src"]
 testpaths = ["tests"]
 asyncio_mode = "auto"
 addopts = "-ra --strict-markers"
+markers = [
+  "asyncio: marks tests as async (deselect with '-m \"not asyncio\"')",
+]
 
 [tool.ruff]
 line-length = 100
