@@ -69,8 +69,9 @@ async def binance_fetch_klines(symbol: str, timeframe: str, limit: int) -> list[
     async with httpx.AsyncClient(timeout=10.0) as client:
         r = await client.get(url, params=params)
         r.raise_for_status()
+        data = r.json()
     return [
         {"open_time": row[0], "open": row[1], "high": row[2],
          "low": row[3], "close": row[4], "volume": row[5]}
-        for row in r.json()
+        for row in data
     ]
