@@ -61,11 +61,12 @@ class Executor:
             if pos is None:
                 s.add(PositionRow(symbol=candidate.symbol, qty=new_pos.qty,
                                    avg_entry=new_pos.avg_entry,
-                                   unrealized_pnl=Decimal("0"),
+                                   unrealized_pnl=(ref_price - new_pos.avg_entry) * new_pos.qty,
                                    updated_at=fill.ts))
             else:
                 pos.qty = new_pos.qty
                 pos.avg_entry = new_pos.avg_entry
+                pos.unrealized_pnl = (ref_price - new_pos.avg_entry) * new_pos.qty
                 pos.updated_at = fill.ts
             s.commit()
         return row
