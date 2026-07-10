@@ -26,19 +26,34 @@ class RiskMonitor:
             ).scalar()
             rolling_high = max(recent_high_row or Decimal("0"), current_equity)
 
-            dd = (rolling_high - current_equity) / rolling_high if rolling_high else Decimal("0")
-            s.add(EquitySnapshot(ts=now, cash=Decimal("0"),
-                                  equity=current_equity, drawdown_pct=dd))
+            if rolling_high > Decimal("0"):
+                dd = (rolling_high - current_equity) / rolling_high
+            elif current_equity <= Decimal("0"):
+                # No prior baseline and equity is zero or below: treat as full drawdown.
+                dd = Decimal("1")
+            else:
+                # First ever tick with positive equity and no baseline yet.
+                dd = Decimal("0")
+
+            existing = s.get(EquitySnapshot, now)
+            if existing is None:
+                s.add(EquitySnapshot(ts=now, cash=Decimal("0"),
+                                      equity=current_equity, drawdown_pct=dd))
+            else:
+                # idempotent: refresh metrics on retry
+                existing.cash = Decimal("0")
+                existing.equity = current_equity
+                existing.drawdown_pct = dd
             s.commit()
 
             if dd >= self.kill_dd_pct:
                 event_payload = {"drawdown_pct": str(dd), "equity": str(current_equity),
                                   "rolling_high": str(rolling_high)}
+                event = CircuitBroken(ts=now, drawdown_pct=dd, action="flatten_all")
+                await self.bus.publish(CH_CIRCUIT_BROKEN, event)
                 s.add(RiskEvent(ts=now, kind="circuit_broken",
                                  payload=event_payload,
                                  actions_taken={"action": "flatten_all"}))
                 s.commit()
-                event = CircuitBroken(ts=now, drawdown_pct=dd, action="flatten_all")
-                await self.bus.publish(CH_CIRCUIT_BROKEN, event)
                 return event
         return None

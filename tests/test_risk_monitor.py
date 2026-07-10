@@ -29,8 +29,20 @@ async def test_kill_fires_on_threshold(session_factory):
     event = await rm.tick(now + timedelta(minutes=1), Decimal("84500"))  # 15.5% dd
     assert event is not None
     assert event.action == "flatten_all"
+    assert event.drawdown_pct == Decimal("0.155")
     with session_factory() as s:
         assert s.query(RiskEvent).count() == 1
+
+
+@pytest.mark.asyncio
+async def test_kill_fires_on_negative_equity_with_no_baseline(session_factory):
+    """Catastrophic loss with no prior snapshots should still trip the kill switch."""
+    rm = RiskMonitor(Bus(fakeredis.aioredis.FakeRedis()), session_factory,
+                     kill_dd_pct=Decimal("0.15"))
+    now = datetime(2026, 6, 29, 12, 0, tzinfo=UTC)
+    event = await rm.tick(now, Decimal("-50000"))
+    assert event is not None
+    assert event.drawdown_pct == Decimal("1")
 
 
 @pytest.mark.asyncio
