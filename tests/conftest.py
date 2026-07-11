@@ -14,6 +14,14 @@ def starting_capital() -> Decimal:
 
 @pytest.fixture
 def session_factory():
-    engine = create_engine("sqlite:///:memory:", future=True)
+    engine = create_engine("sqlite:///file::memory:?cache=shared&uri=true",
+                           future=True,
+                           connect_args={"check_same_thread": False})
     Base.metadata.create_all(engine)
-    return sessionmaker(bind=engine, future=True, expire_on_commit=False)
+    sf = sessionmaker(bind=engine, future=True, expire_on_commit=False)
+
+    yield sf
+
+    # Teardown: clear all tables for next test
+    Base.metadata.drop_all(engine)
+    Base.metadata.create_all(engine)
