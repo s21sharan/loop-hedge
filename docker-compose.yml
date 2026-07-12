@@ -1,0 +1,77 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: loophedge
+      POSTGRES_PASSWORD: loophedge
+      POSTGRES_DB: loophedge
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U loophedge"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  loophedge-base:
+    build:
+      context: .
+      dockerfile: docker/base.Dockerfile
+    image: loophedge:dev
+    profiles: ["build-only"]
+
+  data-ingestor:
+    image: loophedge:dev
+    command: ["ingest"]
+    env_file: .env
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis:    { condition: service_healthy }
+
+  executor:
+    image: loophedge:dev
+    command: ["execute"]
+    env_file: .env
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis:    { condition: service_healthy }
+
+  risk-monitor:
+    image: loophedge:dev
+    command: ["risk"]
+    env_file: .env
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis:    { condition: service_healthy }
+
+  dashboard:
+    image: loophedge:dev
+    command: ["dashboard"]
+    env_file: .env
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  maker-agent:
+    image: loophedge:dev
+    entrypoint: ["sleep", "infinity"]      # Phase 2
+
+  checker-agent:
+    image: loophedge:dev
+    entrypoint: ["sleep", "infinity"]      # Phase 2
+
+  strategy-genesis-agent:
+    image: loophedge:dev
+    entrypoint: ["sleep", "infinity"]      # Phase 2
+
+volumes:
+  pg_data:
