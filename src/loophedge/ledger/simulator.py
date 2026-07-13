@@ -51,11 +51,21 @@ class Simulator:
 
         signed_qty = qty if side == "long" else -qty
         pos = self.positions.setdefault(symbol, _Position(symbol))
-        # weighted avg entry, treating opposite-side fills as reductions
         new_qty = pos.qty + signed_qty
-        if pos.qty == 0 or (pos.qty > 0) == (signed_qty > 0):
+
+        if pos.qty == 0:
+            pos.avg_entry = fill_price
+        elif (pos.qty > 0) == (signed_qty > 0):
+            # same-side addition: weighted average
             total_cost = pos.avg_entry * abs(pos.qty) + fill_price * abs(signed_qty)
-            pos.avg_entry = total_cost / abs(new_qty) if new_qty != 0 else Decimal("0")
+            pos.avg_entry = total_cost / abs(new_qty)
+        elif new_qty != 0 and (new_qty > 0) != (pos.qty > 0):
+            # opposite side, position flipped: residual leg at the new fill price
+            pos.avg_entry = fill_price
+        elif new_qty == 0:
+            pos.avg_entry = Decimal("0")
+        # else: pure reduction toward zero on same side — keep existing avg_entry
+
         pos.qty = new_qty
 
         self.cash -= signed_qty * fill_price + fees

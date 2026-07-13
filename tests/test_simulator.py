@@ -41,3 +41,14 @@ def test_short_sells_uncovered():
     sim = Simulator(starting_cash=Decimal("100000"))
     sim.apply_fill("BTCUSDT", "short", Decimal("0.1"), Decimal("60000"), datetime.now(UTC))
     assert sim.positions["BTCUSDT"].qty == Decimal("-0.1")
+
+
+def test_flip_resets_avg_entry():
+    sim = Simulator(starting_cash=Decimal("100000"))
+    sim.apply_fill("BTCUSDT", "long", Decimal("0.1"), Decimal("60000"), datetime.now(UTC))
+    sim.apply_fill("BTCUSDT", "short", Decimal("0.3"), Decimal("70000"), datetime.now(UTC))
+    pos = sim.positions["BTCUSDT"]
+    assert pos.qty == Decimal("-0.2")
+    # avg_entry should be the SHORT fill price (with -5bps slippage on short)
+    expected_short_price = Decimal("70000") - Decimal("70000") * Decimal("5") / Decimal("10000")
+    assert pos.avg_entry == expected_short_price
