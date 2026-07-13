@@ -1,5 +1,4 @@
 import asyncio
-from decimal import Decimal
 
 import fakeredis.aioredis
 import pytest
@@ -7,7 +6,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from loophedge.bus import CH_BAR_CLOSED, Bus
-from loophedge.models import Base, Bar
+from loophedge.models import Base
 from loophedge.services.data_ingestor import DataIngestor
 
 

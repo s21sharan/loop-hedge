@@ -36,7 +36,8 @@ class Executor:
         )
 
         if not verdict.allowed:
-            self._mark_signal(verified.signal_id, "killed", verdict.reason)
+            reason = verdict.reason or "rejected by risk caps"
+            self._mark_signal(verified.signal_id, "killed", reason)
             return None
 
         ref_price = self.latest_prices[candidate.symbol]

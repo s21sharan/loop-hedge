@@ -1,4 +1,3 @@
-import pytest
 
 from loophedge.cli import main
 

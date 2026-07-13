@@ -4,7 +4,7 @@ from decimal import Decimal
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
-from loophedge.models import Base, Bar, Fill, Position, Signal
+from loophedge.models import Base, Bar, Position, Signal
 
 
 def _engine():

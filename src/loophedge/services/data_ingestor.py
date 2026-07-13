@@ -65,7 +65,7 @@ async def binance_fetch_klines(symbol: str, timeframe: str, limit: int) -> list[
     """Live Binance kline fetcher. Not used in tests."""
     import httpx
     url = "https://api.binance.com/api/v3/klines"
-    params = {"symbol": symbol, "interval": timeframe, "limit": limit}
+    params: dict[str, str | int] = {"symbol": symbol, "interval": timeframe, "limit": limit}
     async with httpx.AsyncClient(timeout=10.0) as client:
         r = await client.get(url, params=params)
         r.raise_for_status()

@@ -1,12 +1,10 @@
 from decimal import Decimal
 
-import pytest
 
 from loophedge.risk.caps import (
     HARD_KILL_SWITCH_DD_PCT,
     HARD_MAX_POSITION_PCT,
     HARD_MAX_STRATEGY_ALLOC_PCT,
-    CapVerdict,
     ProposedTrade,
     enforce_pretrade,
 )
