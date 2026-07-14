@@ -10,4 +10,8 @@ htmlcov/
 .coverage
 dist/
 build/
+
+# Phase 2 — nested skills repo's .git, runtime state
+skills/.git/
 state/
+!state/.gitignore
