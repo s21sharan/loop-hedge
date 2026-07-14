@@ -5,6 +5,10 @@ from sqlalchemy.orm import sessionmaker
 
 from loophedge.models import EquitySnapshot, Position, RiskEvent, Signal
 
+# NOTE: HTML fragments below use f-strings with DB-controlled fields only.
+# This is internal-only; any external/user-supplied strings must be HTML-escaped
+# before interpolation to prevent XSS.
+
 _TEMPLATE = """\
 <!doctype html>
 <html><head><title>loop-hedge</title>
@@ -15,11 +19,13 @@ table{border-collapse:collapse;width:100%}th,td{border-bottom:1px solid #333;pad
 </head><body>
 <h1>loop-hedge</h1>
 <div class="card"><h2>Equity</h2>
-<div hx-get="/api/equity" hx-trigger="load, every 5s" hx-swap="innerHTML"></div></div>
+<div hx-get="/ui/equity" hx-trigger="load, every 5s" hx-swap="innerHTML"></div></div>
 <div class="card"><h2>Positions</h2>
-<div hx-get="/api/positions" hx-trigger="load, every 5s" hx-swap="innerHTML"></div></div>
+<div hx-get="/ui/positions" hx-trigger="load, every 5s" hx-swap="innerHTML"></div></div>
 <div class="card"><h2>Recent signals</h2>
-<div hx-get="/api/signals" hx-trigger="load, every 5s" hx-swap="innerHTML"></div></div>
+<div hx-get="/ui/signals" hx-trigger="load, every 5s" hx-swap="innerHTML"></div></div>
+<div class="card"><h2>Risk Events</h2>
+<div hx-get="/ui/risk-events" hx-trigger="load, every 5s" hx-swap="innerHTML"></div></div>
 </body></html>"""
 
 
@@ -33,6 +39,8 @@ def build_app(session_factory: sessionmaker) -> FastAPI:
     @app.get("/", response_class=HTMLResponse)
     def root():
         return _TEMPLATE
+
+    # ── JSON API endpoints (unchanged signature — tests and programmatic callers) ──
 
     @app.get("/api/equity")
     def equity():
@@ -71,5 +79,78 @@ def build_app(session_factory: sessionmaker) -> FastAPI:
             return [{"id": r.id, "ts": r.ts.isoformat(), "kind": r.kind,
                      "payload": r.payload, "actions_taken": r.actions_taken}
                     for r in rows]
+
+    # ── HTML fragment endpoints polled by HTMX ────────────────────────────────────
+
+    @app.get("/ui/equity", response_class=HTMLResponse)
+    def ui_equity():
+        with session_factory() as s:
+            rows = s.execute(
+                select(EquitySnapshot).order_by(EquitySnapshot.ts.desc()).limit(200)
+            ).scalars().all()
+        if not rows:
+            return "<p>no equity snapshots</p>"
+        body = "".join(
+            f"<tr><td>{r.ts.isoformat()}</td><td>{r.equity}</td><td>{r.drawdown_pct}</td></tr>"
+            for r in rows
+        )
+        return (
+            "<table><thead><tr>"
+            "<th>Timestamp</th><th>Equity</th><th>Drawdown %</th>"
+            f"</tr></thead><tbody>{body}</tbody></table>"
+        )
+
+    @app.get("/ui/positions", response_class=HTMLResponse)
+    def ui_positions():
+        with session_factory() as s:
+            rows = s.execute(select(Position)).scalars().all()
+        body = "".join(
+            f"<tr><td>{r.symbol}</td><td>{r.qty}</td><td>{r.avg_entry}</td><td>{r.unrealized_pnl}</td></tr>"
+            for r in rows
+        )
+        if not body:
+            return "<p>no open positions</p>"
+        return (
+            "<table><thead><tr>"
+            "<th>Symbol</th><th>Qty</th><th>Avg entry</th><th>Unrealized PnL</th>"
+            f"</tr></thead><tbody>{body}</tbody></table>"
+        )
+
+    @app.get("/ui/signals", response_class=HTMLResponse)
+    def ui_signals(limit: int = 50):
+        with session_factory() as s:
+            rows = s.execute(
+                select(Signal).order_by(Signal.ts_created.desc()).limit(limit)
+            ).scalars().all()
+        if not rows:
+            return "<p>no signals</p>"
+        body = "".join(
+            f"<tr><td>{r.symbol}</td><td>{r.side}</td><td>{r.size_pct}</td>"
+            f"<td>{r.status}</td><td>{r.rejection_reason or ''}</td></tr>"
+            for r in rows
+        )
+        return (
+            "<table><thead><tr>"
+            "<th>Symbol</th><th>Side</th><th>Size %</th><th>Status</th><th>Rejection</th>"
+            f"</tr></thead><tbody>{body}</tbody></table>"
+        )
+
+    @app.get("/ui/risk-events", response_class=HTMLResponse)
+    def ui_risk_events():
+        with session_factory() as s:
+            rows = s.execute(
+                select(RiskEvent).order_by(RiskEvent.ts.desc()).limit(50)
+            ).scalars().all()
+        if not rows:
+            return "<p>no risk events</p>"
+        body = "".join(
+            f"<tr><td>{r.ts.isoformat()}</td><td>{r.kind}</td><td>{r.actions_taken}</td></tr>"
+            for r in rows
+        )
+        return (
+            "<table><thead><tr>"
+            "<th>Timestamp</th><th>Kind</th><th>Actions taken</th>"
+            f"</tr></thead><tbody>{body}</tbody></table>"
+        )
 
     return app

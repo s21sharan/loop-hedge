@@ -6,7 +6,7 @@ def run_ingest() -> None:
     import redis.asyncio
     from loophedge.bus import Bus
     from loophedge.config import get_settings
-    from loophedge.db import SessionLocal
+    from loophedge.db import get_session_factory
     from loophedge.services.data_ingestor import (
         DataIngestor, binance_fetch_klines,
     )
@@ -15,7 +15,7 @@ def run_ingest() -> None:
     async def _go():
         redis_client = redis.asyncio.from_url(settings.redis_url)
         bus = Bus(redis_client)
-        ing = DataIngestor(bus, SessionLocal, binance_fetch_klines,
+        ing = DataIngestor(bus, get_session_factory(), binance_fetch_klines,
                             settings.symbols, settings.bar_timeframe)
         while True:
             await ing.fetch_and_publish_once()
@@ -35,9 +35,9 @@ def run_risk() -> None:
 
 def run_dashboard() -> None:
     import uvicorn
-    from loophedge.db import SessionLocal
+    from loophedge.db import get_session_factory
     from loophedge.services.dashboard import build_app
-    app = build_app(SessionLocal)
+    app = build_app(get_session_factory())
     uvicorn.run(app, host="0.0.0.0", port=8000)
 
 

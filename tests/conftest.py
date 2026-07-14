@@ -3,6 +3,7 @@ from decimal import Decimal
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
 from loophedge.models import Base
 
@@ -14,14 +15,13 @@ def starting_capital() -> Decimal:
 
 @pytest.fixture
 def session_factory():
-    engine = create_engine("sqlite:///file::memory:?cache=shared&uri=true",
-                           future=True,
-                           connect_args={"check_same_thread": False})
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+        future=True,
+    )
     Base.metadata.create_all(engine)
-    sf = sessionmaker(bind=engine, future=True, expire_on_commit=False)
-
-    yield sf
-
-    # Teardown: clear all tables for next test
+    yield sessionmaker(bind=engine, future=True, expire_on_commit=False)
     Base.metadata.drop_all(engine)
-    Base.metadata.create_all(engine)
+    engine.dispose()

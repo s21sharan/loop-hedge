@@ -47,3 +47,25 @@ def test_root_returns_html(session_factory):
     r = client.get("/")
     assert r.status_code == 200
     assert "loop-hedge" in r.text.lower()
+
+
+def test_ui_positions_returns_html(session_factory):
+    with session_factory() as s:
+        s.add(Position(symbol="BTCUSDT", qty=Decimal("0.1"),
+                       avg_entry=Decimal("60000"),
+                       unrealized_pnl=Decimal("0"),
+                       updated_at=datetime.now(UTC)))
+        s.commit()
+    app = build_app(session_factory)
+    client = TestClient(app)
+    r = client.get("/ui/positions")
+    assert r.status_code == 200
+    assert "BTCUSDT" in r.text
+    assert "<table" in r.text
+
+
+def test_ui_risk_events_renders_empty_state(session_factory):
+    app = build_app(session_factory)
+    client = TestClient(app)
+    r = client.get("/ui/risk-events")
+    assert r.status_code == 200
