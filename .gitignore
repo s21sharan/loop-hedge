@@ -15,3 +15,6 @@ build/
 skills/.git/
 state/
 !state/.gitignore
+
+# SDD scratch workspace (briefs, reports, review packages)
+.superpowers/
