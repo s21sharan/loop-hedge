@@ -5,7 +5,6 @@ from math import sqrt
 from typing import Any
 
 import numpy as np
-from scipy import stats
 
 from loophedge.ledger.simulator import Simulator
 from loophedge.models import Bar
