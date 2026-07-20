@@ -50,3 +50,29 @@ def make_propose_strategy(registry: StrategyRegistry):
         sid = registry.register_pending(name, source_code, hyperparams, actor="genesis")
         return {"strategy_id": sid, "name": name, "status": "pending"}
     return propose_strategy
+
+
+def make_run_backtest(skills, session_factory):
+    from loophedge.backtest.engine import run_backtest
+    from loophedge.strategies.loader import load_strategy
+    from sqlalchemy import select
+    from loophedge.models import Bar
+
+    def run_strategy_backtest(strategy_name: str, lookback_bars: int = 500) -> dict:
+        module = load_strategy(strategy_name, skills)
+        with session_factory() as s:
+            rows = s.execute(
+                select(Bar).where(Bar.symbol == "BTCUSDT")
+                .order_by(Bar.ts.desc()).limit(lookback_bars)
+            ).scalars().all()
+        bars = list(reversed(rows))
+        result = run_backtest(bars, module.generate_signals, module.DEFAULT_HYPERPARAMS)
+        return {
+            "sharpe": str(result.sharpe),
+            "max_dd_pct": str(result.max_dd_pct),
+            "t_stat": str(result.t_stat),
+            "trade_count": result.trade_count,
+            "passed": result.passed,
+            "notes": result.notes,
+        }
+    return run_strategy_backtest

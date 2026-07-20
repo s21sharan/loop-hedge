@@ -1,0 +1,4 @@
+# Placeholder. Record with:
+#   ANTHROPIC_LIVE_RECORD=1 pytest tests/test_checker.py
+interactions: []
+version: 1
