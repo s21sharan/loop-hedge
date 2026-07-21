@@ -70,3 +70,18 @@ def test_retire_moves_to_retired(tmp_path, session_factory):
     reg.retire("ma_cross_btc", "genesis", "underperformed")
     assert (sr.root / "strategies" / "retired" / "ma_cross_btc.py").exists()
     assert not (sr.root / "strategies" / "active" / "ma_cross_btc.py").exists()
+
+
+def test_retire_from_pending(tmp_path, session_factory):
+    """Retire a strategy that was rejected before promotion (still in pending/)."""
+    sr = _skills(tmp_path)
+    reg = StrategyRegistry(session_factory, sr)
+    reg.register_pending("rejected_strat", SAMPLE.replace('"ma_cross_btc"', '"rejected_strat"'),
+                        {}, "genesis")
+    reg.retire("rejected_strat", actor="checker", reason="rejected by checker")
+    assert (sr.root / "strategies" / "retired" / "rejected_strat.py").exists()
+    assert not (sr.root / "strategies" / "pending" / "rejected_strat.py").exists()
+    with session_factory() as s:
+        row = s.query(Strategy).filter_by(name="rejected_strat").one()
+        assert row.status == "retired"
+        assert row.retired_reason == "rejected by checker"

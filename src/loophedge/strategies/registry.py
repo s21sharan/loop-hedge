@@ -36,7 +36,11 @@ class StrategyRegistry:
             s.commit()
 
     def retire(self, name: str, actor: str, reason: str) -> None:
-        self._move(name, src_sub="active", dst_sub="retired", actor=actor, reason=reason)
+        # Auto-detect whether the strategy is currently active or pending.
+        src_sub = "active"
+        if not (self.skills.root / "strategies" / "active" / f"{name}.py").exists():
+            src_sub = "pending"
+        self._move(name, src_sub=src_sub, dst_sub="retired", actor=actor, reason=reason)
         with self.session_factory() as s:
             row = s.query(Strategy).filter_by(name=name).one()
             row.status = "retired"
