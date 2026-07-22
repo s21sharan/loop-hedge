@@ -1,3 +1,4 @@
+import asyncio
 from datetime import UTC, datetime
 from decimal import Decimal
 
@@ -98,4 +99,83 @@ class Executor:
             if sig:
                 sig.status = status
                 sig.rejection_reason = reason
+                s.commit()
+
+
+class ExecutorService:
+    """Long-running subscriber to signal.verified and circuit.broken."""
+
+    def __init__(self, executor: Executor, bus: Bus, simulator: Simulator,
+                  session_factory: sessionmaker):
+        self.executor = executor
+        self.bus = bus
+        self.simulator = simulator
+        self.session_factory = session_factory
+        self._stop = asyncio.Event()
+
+    async def run(self) -> None:
+        signal_task = asyncio.create_task(self._consume_signals())
+        circuit_task = asyncio.create_task(self._consume_circuit())
+        try:
+            await self._stop.wait()
+        finally:
+            signal_task.cancel()
+            circuit_task.cancel()
+            await asyncio.gather(signal_task, circuit_task, return_exceptions=True)
+
+    async def stop(self) -> None:
+        self._stop.set()
+
+    async def _consume_signals(self) -> None:
+        from loophedge.bus import CH_SIGNAL_VERIFIED
+        async for payload in self.bus.subscribe(CH_SIGNAL_VERIFIED):
+            try:
+                await self.handle_signal(payload)
+            except Exception:
+                continue
+
+    async def _consume_circuit(self) -> None:
+        from loophedge.bus import CH_CIRCUIT_BROKEN
+        async for payload in self.bus.subscribe(CH_CIRCUIT_BROKEN):
+            try:
+                await self.handle_circuit(payload)
+            except Exception:
+                continue
+
+    async def handle_signal(self, payload: dict) -> None:
+        from loophedge.schemas import SignalCandidate, SignalVerified
+        verified = SignalVerified.model_validate(payload)
+        with self.session_factory() as s:
+            sig = s.get(Signal, verified.signal_id)
+            if sig is None:
+                return
+            candidate = SignalCandidate(
+                signal_id=sig.id, strategy_id=sig.strategy_id,
+                symbol=sig.symbol, side=sig.side, size_pct=sig.size_pct,
+                reasoning=(sig.maker_payload or {}).get("reasoning", ""),
+            )
+        await self.executor.handle_verified(verified, candidate)
+
+    async def handle_circuit(self, payload: dict) -> None:
+        snapshot = list(self.simulator.positions.items())
+        for symbol, pos in snapshot:
+            if pos.qty == Decimal("0"):
+                continue
+            side = "short" if pos.qty > 0 else "long"
+            ref = self.executor.latest_prices.get(symbol, pos.avg_entry)
+            fill = self.simulator.apply_fill(symbol, side, abs(pos.qty), ref,
+                                              datetime.now(UTC))
+            from loophedge.models import Fill as FillRow
+            from loophedge.models import Position as PositionRow
+            with self.session_factory() as s:
+                s.add(FillRow(id=fill.id, signal_id=None,
+                              ts=fill.ts, symbol=fill.symbol, side=fill.side,
+                              qty=fill.qty, price=fill.price, fees=fill.fees,
+                              venue="simulator"))
+                p = s.get(PositionRow, symbol)
+                if p is not None:
+                    p.qty = self.simulator.positions[symbol].qty
+                    p.avg_entry = self.simulator.positions[symbol].avg_entry
+                    p.unrealized_pnl = Decimal("0")
+                    p.updated_at = fill.ts
                 s.commit()
