@@ -100,7 +100,8 @@ class MakerAgent:
         prompt = ("Active strategies: " + ", ".join(s.name for s in actives)
                    + ". Read the relevant skill/lessons and decide which signals to emit.")
         # We capture the LLM's contextual filter, then iterate strategies mechanically.
-        self.client.run([{"role": "user", "content": prompt}], max_turns=4)
+        await asyncio.to_thread(self.client.run,
+                                  [{"role": "user", "content": prompt}], 4)
 
         emitted = 0
         for strat in actives:
@@ -108,11 +109,12 @@ class MakerAgent:
                 module = load_strategy(strat.name, self.skills)
             except Exception:
                 continue
+            symbol = strat.hyperparams.get("symbol", "BTCUSDT")
             with self.session_factory() as s:
                 from sqlalchemy import select
                 from loophedge.models import Bar
                 rows = s.execute(
-                    select(Bar).where(Bar.symbol == "BTCUSDT")
+                    select(Bar).where(Bar.symbol == symbol)
                     .order_by(Bar.ts.desc()).limit(200)
                 ).scalars().all()
             bars = list(reversed(rows))
