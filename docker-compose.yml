@@ -32,6 +32,9 @@ services:
     image: loophedge:dev
     command: ["ingest"]
     env_file: .env
+    volumes:
+      - ./skills:/app/skills
+      - ./state:/app/state
     depends_on:
       postgres: { condition: service_healthy }
       redis:    { condition: service_healthy }
@@ -40,6 +43,9 @@ services:
     image: loophedge:dev
     command: ["execute"]
     env_file: .env
+    volumes:
+      - ./skills:/app/skills
+      - ./state:/app/state
     depends_on:
       postgres: { condition: service_healthy }
       redis:    { condition: service_healthy }
@@ -48,6 +54,9 @@ services:
     image: loophedge:dev
     command: ["risk"]
     env_file: .env
+    volumes:
+      - ./skills:/app/skills
+      - ./state:/app/state
     depends_on:
       postgres: { condition: service_healthy }
       redis:    { condition: service_healthy }
@@ -58,20 +67,44 @@ services:
     env_file: .env
     ports:
       - "8000:8000"
+    volumes:
+      - ./skills:/app/skills
+      - ./state:/app/state
     depends_on:
       postgres: { condition: service_healthy }
 
   maker-agent:
     image: loophedge:dev
-    entrypoint: ["sleep", "infinity"]      # Phase 2
+    command: ["maker"]
+    env_file: .env
+    volumes:
+      - ./skills:/app/skills
+      - ./state:/app/state
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis:    { condition: service_healthy }
 
   checker-agent:
     image: loophedge:dev
-    entrypoint: ["sleep", "infinity"]      # Phase 2
+    command: ["checker"]
+    env_file: .env
+    volumes:
+      - ./skills:/app/skills
+      - ./state:/app/state
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis:    { condition: service_healthy }
 
   strategy-genesis-agent:
     image: loophedge:dev
-    entrypoint: ["sleep", "infinity"]      # Phase 2
+    command: ["genesis"]
+    env_file: .env
+    volumes:
+      - ./skills:/app/skills
+      - ./state:/app/state
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis:    { condition: service_healthy }
 
 volumes:
   pg_data:
