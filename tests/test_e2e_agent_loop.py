@@ -1,8 +1,5 @@
-import asyncio
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from pathlib import Path
-from unittest.mock import MagicMock
 
 import fakeredis.aioredis
 import git
@@ -13,11 +10,9 @@ from loophedge.agents.client import AgentClient
 from loophedge.agents.genesis import GenesisAgent
 from loophedge.agents.maker import MakerAgent
 from loophedge.bus import Bus
-from loophedge.ledger.simulator import Simulator
 from loophedge.memory.lessons import LessonsLog
 from loophedge.memory.skills import SkillsRepo
-from loophedge.models import Bar, Fill, Position, Strategy
-from loophedge.services.executor import Executor, ExecutorService
+from loophedge.models import Bar, Strategy
 from loophedge.strategies.registry import StrategyRegistry
 
 

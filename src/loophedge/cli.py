@@ -1,6 +1,5 @@
 import asyncio
 import sys
-from pathlib import Path
 
 
 def run_ingest() -> None:
@@ -82,7 +81,7 @@ def run_maker() -> None:
     from loophedge.memory.lessons import LessonsLog
     from loophedge.memory.skills import SkillsRepo
     from loophedge.strategies.registry import StrategyRegistry
-    from apscheduler.schedulers.asyncio import AsyncIOScheduler
+    from apscheduler.schedulers.asyncio import AsyncIOScheduler  # type: ignore[import-untyped]
     from datetime import datetime
     from pathlib import Path as _Path
 
@@ -102,7 +101,6 @@ def run_maker() -> None:
                             bus, state_root / "maker_watermark.txt")
 
         async def _on_bar(msg):
-            from datetime import datetime
             ts = datetime.fromisoformat(msg["ts"].replace("Z", "+00:00"))
             maker.record_bar_seen(ts)
 
@@ -151,21 +149,15 @@ def run_checker() -> None:
 
 
 def run_genesis() -> None:
-    import redis.asyncio
     from loophedge.agents.client import AgentClient
     from loophedge.agents.genesis import GenesisAgent
-    from loophedge.bus import Bus
-    from loophedge.config import get_settings
     from loophedge.db import get_session_factory
     from loophedge.memory.lessons import LessonsLog
     from loophedge.memory.skills import SkillsRepo
     from loophedge.strategies.registry import StrategyRegistry
     from pathlib import Path as _Path
 
-    settings = get_settings()
     async def _go():
-        redis_client = redis.asyncio.from_url(settings.redis_url)
-        bus = Bus(redis_client)
         sr = SkillsRepo(_Path("/app/skills"))
         lessons = LessonsLog(sr)
         reg = StrategyRegistry(get_session_factory(), sr)

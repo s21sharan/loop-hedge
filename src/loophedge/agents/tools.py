@@ -4,7 +4,6 @@ These wrap the agents' allowed side effects. Each function returns a
 JSON-serializable dict. Keep functions small and obviously safe — they
 are the chokepoint that limits what the LLM can do.
 """
-from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import select

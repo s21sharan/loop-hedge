@@ -11,7 +11,7 @@ class LessonsLog:
         existing = self.skills.read("LESSONS.md")
         entry = f"- {ts.isoformat()} [{actor}] {summary}\n"
         new = existing.rstrip() + "\n" + entry
-        self.skills.write("LESSONS.md", new, actor=actor, reason=f"new lesson")
+        self.skills.write("LESSONS.md", new, actor=actor, reason="new lesson")
 
     def recent(self, n: int = 20) -> list[str]:
         body = self.skills.read("LESSONS.md")

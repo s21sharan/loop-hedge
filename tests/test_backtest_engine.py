@@ -1,7 +1,6 @@
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
-import pytest
 
 from loophedge.backtest.engine import BacktestResult, run_backtest
 from loophedge.models import Bar

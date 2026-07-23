@@ -1,7 +1,5 @@
-from pathlib import Path
 
 import git
-import pytest
 
 from loophedge.memory.skills import SkillsRepo
 from loophedge.models import Strategy

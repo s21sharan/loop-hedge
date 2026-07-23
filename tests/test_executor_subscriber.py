@@ -8,7 +8,7 @@ import pytest
 from loophedge.bus import CH_CIRCUIT_BROKEN, CH_SIGNAL_VERIFIED, Bus
 from loophedge.ledger.simulator import Simulator
 from loophedge.models import Position, Signal
-from loophedge.schemas import CircuitBroken, SignalCandidate, SignalVerified
+from loophedge.schemas import CircuitBroken, SignalVerified
 from loophedge.services.executor import Executor, ExecutorService
 
 

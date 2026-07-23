@@ -1,9 +1,7 @@
 from datetime import UTC, datetime
-from pathlib import Path
 
 import fakeredis.aioredis
 import git
-import pytest
 
 from loophedge.agents.client import AgentClient
 from loophedge.agents.maker import MakerAgent

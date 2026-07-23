@@ -26,11 +26,11 @@ class AgentClient:
             for t in self.tools.values()
         ]
         for _ in range(max_turns):
-            kwargs = {"model": self.model, "system": self.system_prompt,
+            kwargs: dict[str, Any] = {"model": self.model, "system": self.system_prompt,
                        "messages": msgs, "max_tokens": 4096}
             if tool_schemas:
                 kwargs["tools"] = tool_schemas
-            resp = self._client.messages.create(**kwargs)
+            resp = self._client.messages.create(**kwargs)  # type: ignore[call-overload]
 
             assistant_content = []
             tool_results = []

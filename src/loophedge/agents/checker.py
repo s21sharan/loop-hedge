@@ -5,7 +5,7 @@ from loophedge.agents.client import AgentClient, ToolSpec
 from loophedge.agents.tools import (
     make_read_skill, make_read_lessons, make_run_backtest,
 )
-from loophedge.bus import CH_SIGNAL_REJECTED, CH_SIGNAL_VERIFIED, Bus
+from loophedge.bus import Bus
 from loophedge.memory.lessons import LessonsLog
 from loophedge.memory.skills import SkillsRepo
 from loophedge.strategies.registry import StrategyRegistry
