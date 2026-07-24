@@ -1,6 +1,6 @@
 import asyncio
 import uuid
-from datetime import UTC, datetime
+from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
 
@@ -95,6 +95,10 @@ class MakerAgent:
     async def tick(self) -> int:
         actives = self.registry.list_active()
         if not actives:
+            seen = self._read_seen()
+            if seen:
+                from datetime import datetime as _dt
+                self._mark_ticked(_dt.fromisoformat(seen))
             return 0
 
         prompt = ("Active strategies: " + ", ".join(s.name for s in actives)
@@ -123,6 +127,18 @@ class MakerAgent:
             except Exception:
                 continue
             for sig in sigs[-3:]:  # cap per strategy per tick
+                # Dedupe by (strategy, symbol, payload-ts).
+                sig_ts = sig["ts"].isoformat() if hasattr(sig["ts"], "isoformat") else str(sig["ts"])
+                with self.session_factory() as _s:
+                    from sqlalchemy import select as _select
+                    last = _s.execute(
+                        _select(Signal).where(
+                            Signal.strategy_id == strat.name,
+                            Signal.symbol == sig["symbol"],
+                        ).order_by(Signal.ts_created.desc()).limit(1)
+                    ).scalar()
+                    if last is not None and (last.maker_payload or {}).get("ts") == sig_ts:
+                        continue
                 signal_id = str(uuid.uuid4())
                 with self.session_factory() as s:
                     s.add(Signal(id=signal_id, strategy_id=strat.name,
@@ -138,5 +154,8 @@ class MakerAgent:
                     reasoning="maker emitted from active strategy"))
                 emitted += 1
 
-        self._mark_ticked(datetime.now(UTC))
+        seen = self._read_seen()
+        if seen:
+            from datetime import datetime as _dt
+            self._mark_ticked(_dt.fromisoformat(seen))
         return emitted
