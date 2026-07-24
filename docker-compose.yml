@@ -40,7 +40,7 @@ services:
     depends_on:
       postgres: { condition: service_healthy }
       redis:    { condition: service_healthy }
-    restart: unless-stopped
+    restart: on-failure:10
 
   executor:
     image: loophedge:dev
@@ -52,7 +52,7 @@ services:
     depends_on:
       postgres: { condition: service_healthy }
       redis:    { condition: service_healthy }
-    restart: unless-stopped
+    restart: on-failure:10
 
   risk-monitor:
     image: loophedge:dev
@@ -64,7 +64,7 @@ services:
     depends_on:
       postgres: { condition: service_healthy }
       redis:    { condition: service_healthy }
-    restart: unless-stopped
+    restart: on-failure:10
 
   dashboard:
     image: loophedge:dev
@@ -77,7 +77,7 @@ services:
       - ./state:/app/state
     depends_on:
       postgres: { condition: service_healthy }
-    restart: unless-stopped
+    restart: on-failure:10
 
   maker-agent:
     image: loophedge:dev
@@ -89,7 +89,7 @@ services:
     depends_on:
       postgres: { condition: service_healthy }
       redis:    { condition: service_healthy }
-    restart: unless-stopped
+    restart: on-failure:10
 
   checker-agent:
     image: loophedge:dev
@@ -101,7 +101,7 @@ services:
     depends_on:
       postgres: { condition: service_healthy }
       redis:    { condition: service_healthy }
-    restart: unless-stopped
+    restart: on-failure:10
 
   strategy-genesis-agent:
     image: loophedge:dev
@@ -113,7 +113,7 @@ services:
     depends_on:
       postgres: { condition: service_healthy }
       redis:    { condition: service_healthy }
-    restart: unless-stopped
+    restart: on-failure:10
 
 volumes:
   pg_data:
