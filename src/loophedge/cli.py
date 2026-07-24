@@ -22,9 +22,10 @@ def run_ingest() -> None:
 
 
 def run_execute() -> None:
+    import asyncio as _asyncio
     import redis.asyncio
     from decimal import Decimal
-    from loophedge.bus import Bus
+    from loophedge.bus import CH_BAR_CLOSED, Bus
     from loophedge.config import get_settings
     from loophedge.db import get_session_factory
     from loophedge.ledger.simulator import Simulator
@@ -36,30 +37,65 @@ def run_execute() -> None:
         bus = Bus(redis_client)
         sf = get_session_factory()
         sim = Simulator(starting_cash=Decimal(str(settings.starting_capital_usd)))
-        ex = Executor(bus, sf, sim, latest_prices={})
+        latest_prices: dict = {}
+        ex = Executor(bus, sf, sim, latest_prices=latest_prices)
         svc = ExecutorService(ex, bus, sim, sf)
-        await svc.run()
+
+        async def _track_prices():
+            async for msg in bus.subscribe(CH_BAR_CLOSED):
+                try:
+                    latest_prices[msg["symbol"]] = Decimal(str(msg["close"]))
+                except Exception:
+                    pass
+
+        price_task = _asyncio.create_task(_track_prices())
+        try:
+            await svc.run()
+        finally:
+            price_task.cancel()
+            try:
+                await price_task
+            except _asyncio.CancelledError:
+                pass
     asyncio.run(_go())
 
 
 def run_risk() -> None:
+    import asyncio as _asyncio
     import redis.asyncio
     from datetime import UTC, datetime
     from decimal import Decimal
+    from sqlalchemy import select
     from loophedge.bus import Bus
     from loophedge.config import get_settings
     from loophedge.db import get_session_factory
+    from loophedge.models import Bar, Position
     from loophedge.services.risk_monitor import RiskMonitor
 
     settings = get_settings()
     async def _go():
         redis_client = redis.asyncio.from_url(settings.redis_url)
         bus = Bus(redis_client)
-        rm = RiskMonitor(bus, get_session_factory(),
-                         kill_dd_pct=Decimal(str(settings.kill_switch_dd_pct)))
+        sf = get_session_factory()
+        rm = RiskMonitor(bus, sf, kill_dd_pct=Decimal(str(settings.kill_switch_dd_pct)))
+        starting = Decimal(str(settings.starting_capital_usd))
         while True:
-            await rm.tick(datetime.now(UTC), Decimal(str(settings.starting_capital_usd)))
-            await asyncio.sleep(60)
+            # Compute equity from Postgres state.
+            equity = starting
+            with sf() as s:
+                positions = s.execute(select(Position)).scalars().all()
+                for p in positions:
+                    if p.qty == Decimal("0"):
+                        continue
+                    last_bar = s.execute(
+                        select(Bar).where(Bar.symbol == p.symbol)
+                        .order_by(Bar.ts.desc()).limit(1)
+                    ).scalar()
+                    if last_bar is None:
+                        continue
+                    equity += (last_bar.close - p.avg_entry) * p.qty
+            await rm.tick(datetime.now(UTC), equity)
+            await _asyncio.sleep(60)
     asyncio.run(_go())
 
 
@@ -140,10 +176,14 @@ def run_checker() -> None:
         ck = CheckerAgent(client, reg, sr, lessons, get_session_factory(), bus)
 
         async for msg in bus.subscribe(CH_SIGNAL_CANDIDATE):
+            signal_id = msg.get("signal_id")
             strategy_name = msg.get("strategy_id", "")
-            if not strategy_name:
+            if not signal_id or not strategy_name:
                 continue
-            ck.validate(strategy_name)
+            try:
+                await ck.verify_signal(signal_id, strategy_name)
+            except Exception as e:
+                print(f"[checker] verify_signal failed: {e}", file=sys.stderr)
 
     asyncio.run(_go())
 
