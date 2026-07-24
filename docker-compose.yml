@@ -2,16 +2,17 @@ services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: loophedge
-      POSTGRES_PASSWORD: loophedge
-      POSTGRES_DB: loophedge
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     volumes:
       - pg_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U loophedge"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
       interval: 5s
       timeout: 3s
       retries: 5
+    restart: unless-stopped
 
   redis:
     image: redis:7-alpine
@@ -20,6 +21,7 @@ services:
       interval: 5s
       timeout: 3s
       retries: 5
+    restart: unless-stopped
 
   loophedge-base:
     build:
@@ -38,6 +40,7 @@ services:
     depends_on:
       postgres: { condition: service_healthy }
       redis:    { condition: service_healthy }
+    restart: unless-stopped
 
   executor:
     image: loophedge:dev
@@ -49,6 +52,7 @@ services:
     depends_on:
       postgres: { condition: service_healthy }
       redis:    { condition: service_healthy }
+    restart: unless-stopped
 
   risk-monitor:
     image: loophedge:dev
@@ -60,18 +64,20 @@ services:
     depends_on:
       postgres: { condition: service_healthy }
       redis:    { condition: service_healthy }
+    restart: unless-stopped
 
   dashboard:
     image: loophedge:dev
     command: ["dashboard"]
     env_file: .env
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     volumes:
       - ./skills:/app/skills
       - ./state:/app/state
     depends_on:
       postgres: { condition: service_healthy }
+    restart: unless-stopped
 
   maker-agent:
     image: loophedge:dev
@@ -83,6 +89,7 @@ services:
     depends_on:
       postgres: { condition: service_healthy }
       redis:    { condition: service_healthy }
+    restart: unless-stopped
 
   checker-agent:
     image: loophedge:dev
@@ -94,6 +101,7 @@ services:
     depends_on:
       postgres: { condition: service_healthy }
       redis:    { condition: service_healthy }
+    restart: unless-stopped
 
   strategy-genesis-agent:
     image: loophedge:dev
@@ -105,6 +113,7 @@ services:
     depends_on:
       postgres: { condition: service_healthy }
       redis:    { condition: service_healthy }
+    restart: unless-stopped
 
 volumes:
   pg_data:
