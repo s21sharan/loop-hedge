@@ -62,9 +62,14 @@ class DataIngestor:
 
 
 async def binance_fetch_klines(symbol: str, timeframe: str, limit: int) -> list[dict]:
-    """Live Binance kline fetcher. Not used in tests."""
+    """Live Binance kline fetcher. Base URL is env-configurable so hosts blocked
+    from api.binance.com (e.g. US-region DO droplets) can point at
+    testnet.binance.vision or api.binance.us instead."""
+    import os
+
     import httpx
-    url = "https://api.binance.com/api/v3/klines"
+    base = os.environ.get("BINANCE_API_BASE", "https://api.binance.com").rstrip("/")
+    url = f"{base}/api/v3/klines"
     params: dict[str, str | int] = {"symbol": symbol, "interval": timeframe, "limit": limit}
     async with httpx.AsyncClient(timeout=10.0) as client:
         r = await client.get(url, params=params)
