@@ -172,7 +172,26 @@ def run_checker() -> None:
     from loophedge.strategies.registry import StrategyRegistry
     from pathlib import Path as _Path
 
+    import hashlib
+    import json
+
     settings = get_settings()
+    state_path = _Path("/app/state/checker_sweep_state.json")
+    MAX_FAILED_ATTEMPTS = 3
+
+    def _load_state() -> dict:
+        try:
+            return json.loads(state_path.read_text())
+        except (FileNotFoundError, json.JSONDecodeError):
+            return {}
+
+    def _save_state(state: dict) -> None:
+        state_path.parent.mkdir(parents=True, exist_ok=True)
+        state_path.write_text(json.dumps(state))
+
+    def _hash(text: str) -> str:
+        return hashlib.sha256(text.encode()).hexdigest()
+
     async def _go():
         redis_client = redis.asyncio.from_url(settings.redis_url)
         bus = Bus(redis_client)
@@ -186,14 +205,49 @@ def run_checker() -> None:
             pending = reg.list_pending()
             if not pending:
                 return
-            print(f"[checker] sweeping {len(pending)} pending strategies", flush=True)
+            state = _load_state()
+            checked = 0
+            skipped = 0
             for row in pending:
                 try:
+                    source = sr.read_strategy(row.name)
+                except FileNotFoundError:
+                    continue
+                h = _hash(source)
+                entry = state.get(row.name, {"attempts": 0, "hash": None})
+                if entry["hash"] == h and entry["attempts"] > 0:
+                    skipped += 1
+                    continue
+                checked += 1
+                try:
                     verdict = await asyncio.to_thread(ck.validate_strategy, row.name)
-                    print(f"[checker] {row.name} -> {verdict}", flush=True)
                 except Exception as e:
                     print(f"[checker] validate_strategy({row.name}) failed: {e}",
                           file=sys.stderr, flush=True)
+                    continue
+                if verdict == "needs_revision":
+                    entry["attempts"] += 1
+                    entry["hash"] = h
+                    state[row.name] = entry
+                    print(f"[checker] {row.name} -> needs_revision "
+                          f"(attempt {entry['attempts']}/{MAX_FAILED_ATTEMPTS})",
+                          flush=True)
+                    if entry["attempts"] >= MAX_FAILED_ATTEMPTS:
+                        try:
+                            reg.retire(row.name, actor="checker",
+                                       reason=f"failed validation {MAX_FAILED_ATTEMPTS}x")
+                            state.pop(row.name, None)
+                            print(f"[checker] retired {row.name} after "
+                                  f"{MAX_FAILED_ATTEMPTS} failed attempts", flush=True)
+                        except Exception as e:
+                            print(f"[checker] retire({row.name}) failed: {e}",
+                                  file=sys.stderr, flush=True)
+                else:
+                    state.pop(row.name, None)
+                    print(f"[checker] {row.name} -> {verdict}", flush=True)
+                _save_state(state)
+            print(f"[checker] sweep done: {checked} checked, {skipped} skipped (unchanged)",
+                  flush=True)
 
         # Run one sweep immediately, then hourly.
         await _sweep_pending()
@@ -235,7 +289,7 @@ def run_genesis() -> None:
                 print(f"[genesis] proposed: {name or '(none)'}", flush=True)
             except Exception as e:
                 print(f"[genesis] propose_once failed: {e}", file=sys.stderr, flush=True)
-            await asyncio.sleep(3600)
+            await asyncio.sleep(14400)  # 4 hours — was hourly; cost-motivated
     asyncio.run(_go())
 
 
