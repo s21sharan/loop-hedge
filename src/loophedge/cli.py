@@ -141,8 +141,13 @@ def run_maker() -> None:
             maker.record_bar_seen(ts)
 
         async def _on_timer():
-            if maker.should_tick():
-                await maker.tick()
+            if not maker.should_tick():
+                return
+            try:
+                n = await maker.tick()
+                print(f"[maker] tick emitted {n} signal(s)", flush=True)
+            except Exception as e:
+                print(f"[maker] tick failed: {e}", file=sys.stderr, flush=True)
 
         sched = AsyncIOScheduler()
         sched.add_job(_on_timer, "interval", minutes=15)
@@ -155,6 +160,7 @@ def run_maker() -> None:
 
 def run_checker() -> None:
     import redis.asyncio
+    from apscheduler.schedulers.asyncio import AsyncIOScheduler  # type: ignore[import-untyped]
     from loophedge.agents.checker import CheckerAgent
     from loophedge.agents.client import AgentClient
     from loophedge.bus import CH_SIGNAL_CANDIDATE, Bus
@@ -175,6 +181,25 @@ def run_checker() -> None:
         client = AgentClient(model="claude-opus-4-7", system_prompt="", tools=[])
         ck = CheckerAgent(client, reg, sr, lessons, get_session_factory(), bus)
 
+        async def _sweep_pending() -> None:
+            pending = reg.list_pending()
+            if not pending:
+                return
+            print(f"[checker] sweeping {len(pending)} pending strategies", flush=True)
+            for row in pending:
+                try:
+                    verdict = await asyncio.to_thread(ck.validate_strategy, row.name)
+                    print(f"[checker] {row.name} -> {verdict}", flush=True)
+                except Exception as e:
+                    print(f"[checker] validate_strategy({row.name}) failed: {e}",
+                          file=sys.stderr, flush=True)
+
+        # Run one sweep immediately, then hourly.
+        await _sweep_pending()
+        sched = AsyncIOScheduler()
+        sched.add_job(_sweep_pending, "interval", minutes=30)
+        sched.start()
+
         async for msg in bus.subscribe(CH_SIGNAL_CANDIDATE):
             signal_id = msg.get("signal_id")
             strategy_name = msg.get("strategy_id", "")
@@ -183,7 +208,7 @@ def run_checker() -> None:
             try:
                 await ck.verify_signal(signal_id, strategy_name)
             except Exception as e:
-                print(f"[checker] verify_signal failed: {e}", file=sys.stderr)
+                print(f"[checker] verify_signal failed: {e}", file=sys.stderr, flush=True)
 
     asyncio.run(_go())
 
@@ -204,7 +229,11 @@ def run_genesis() -> None:
         client = AgentClient(model="claude-opus-4-7", system_prompt="", tools=[])
         agent = GenesisAgent(client, reg, sr, lessons, get_session_factory())
         while True:
-            agent.propose_once()
+            try:
+                name = await asyncio.to_thread(agent.propose_once)
+                print(f"[genesis] proposed: {name or '(none)'}", flush=True)
+            except Exception as e:
+                print(f"[genesis] propose_once failed: {e}", file=sys.stderr, flush=True)
             await asyncio.sleep(3600)
     asyncio.run(_go())
 
