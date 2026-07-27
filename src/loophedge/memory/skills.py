@@ -10,7 +10,20 @@ class SkillsRepo:
         self.root = Path(root).resolve()
         if not (self.root / ".git").exists():
             raise ValueError(f"{root} is not a git repo")
+        # Bind-mounted from a different uid on the host: git 2.35+ refuses to
+        # touch such repos unless the path is on the safe.directory list.
+        try:
+            git.Git().execute(["git", "config", "--global", "--add",
+                                "safe.directory", str(self.root)])
+        except git.exc.GitCommandError:
+            pass
         self._repo = git.Repo(self.root)
+        # Ensure commit identity exists (containers often start with no gitconfig)
+        with self._repo.config_writer(config_level="repository") as cw:
+            if not cw.has_option("user", "name"):
+                cw.set_value("user", "name", "loophedge-agent")
+            if not cw.has_option("user", "email"):
+                cw.set_value("user", "email", "agent@loophedge.local")
 
     def read(self, relpath: str) -> str:
         path = self._safe_path(relpath)
