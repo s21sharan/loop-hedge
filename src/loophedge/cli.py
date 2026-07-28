@@ -38,7 +38,8 @@ def run_execute() -> None:
         sf = get_session_factory()
         sim = Simulator(starting_cash=Decimal(str(settings.starting_capital_usd)))
         latest_prices: dict = {}
-        ex = Executor(bus, sf, sim, latest_prices=latest_prices)
+        ex = Executor(bus, sf, sim, latest_prices=latest_prices,
+                      venue=settings.live_venue)
         svc = ExecutorService(ex, bus, sim, sf)
 
         async def _track_prices():
@@ -65,12 +66,10 @@ def run_risk() -> None:
     import redis.asyncio
     from datetime import UTC, datetime
     from decimal import Decimal
-    from sqlalchemy import select
     from loophedge.bus import Bus
     from loophedge.config import get_settings
     from loophedge.db import get_session_factory
-    from loophedge.models import Bar, Position
-    from loophedge.services.risk_monitor import RiskMonitor
+    from loophedge.services.risk_monitor import RiskMonitor, compute_equity
 
     settings = get_settings()
     async def _go():
@@ -80,20 +79,8 @@ def run_risk() -> None:
         rm = RiskMonitor(bus, sf, kill_dd_pct=Decimal(str(settings.kill_switch_dd_pct)))
         starting = Decimal(str(settings.starting_capital_usd))
         while True:
-            # Compute equity from Postgres state.
-            equity = starting
             with sf() as s:
-                positions = s.execute(select(Position)).scalars().all()
-                for p in positions:
-                    if p.qty == Decimal("0"):
-                        continue
-                    last_bar = s.execute(
-                        select(Bar).where(Bar.symbol == p.symbol)
-                        .order_by(Bar.ts.desc()).limit(1)
-                    ).scalar()
-                    if last_bar is None:
-                        continue
-                    equity += (last_bar.close - p.avg_entry) * p.qty
+                equity = compute_equity(s, starting)
             await rm.tick(datetime.now(UTC), equity)
             await _asyncio.sleep(60)
     asyncio.run(_go())

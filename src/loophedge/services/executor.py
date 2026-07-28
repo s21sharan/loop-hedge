@@ -15,11 +15,13 @@ from loophedge.schemas import SignalCandidate, SignalVerified
 
 class Executor:
     def __init__(self, bus: Bus, session_factory: sessionmaker,
-                 simulator: Simulator, latest_prices: dict[str, Decimal]):
+                 simulator: Simulator, latest_prices: dict[str, Decimal],
+                 venue: str = "simulator"):
         self.bus = bus
         self.session_factory = session_factory
         self.simulator = simulator
         self.latest_prices = latest_prices
+        self.venue = venue
 
     async def handle_verified(self, verified: SignalVerified,
                               candidate: SignalCandidate) -> FillRow | None:
@@ -53,7 +55,7 @@ class Executor:
         with self.session_factory() as s:
             row = FillRow(id=fill.id, signal_id=verified.signal_id, ts=fill.ts,
                           symbol=fill.symbol, side=fill.side, qty=fill.qty,
-                          price=fill.price, fees=fill.fees, venue="simulator")
+                          price=fill.price, fees=fill.fees, venue=self.venue)
             s.add(row)
             sig = s.get(Signal, verified.signal_id)
             if sig:
@@ -171,7 +173,7 @@ class ExecutorService:
                 s.add(FillRow(id=fill.id, signal_id=None,
                               ts=fill.ts, symbol=fill.symbol, side=fill.side,
                               qty=fill.qty, price=fill.price, fees=fill.fees,
-                              venue="simulator"))
+                              venue=self.executor.venue))
                 p = s.get(PositionRow, symbol)
                 if p is not None:
                     p.qty = self.simulator.positions[symbol].qty

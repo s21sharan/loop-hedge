@@ -1,12 +1,43 @@
 from datetime import datetime, timedelta
 from decimal import Decimal
 
-from sqlalchemy import select
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy import case, func, select
+from sqlalchemy.orm import Session, sessionmaker
 
 from loophedge.bus import CH_CIRCUIT_BROKEN, Bus
-from loophedge.models import EquitySnapshot, RiskEvent
+from loophedge.models import Bar, EquitySnapshot, Fill, Position, RiskEvent
 from loophedge.schemas import CircuitBroken
+
+
+def compute_equity(session: Session, starting_capital: Decimal) -> Decimal:
+    """Mark-to-market equity from persisted state: cash plus open positions.
+
+    Cash is reconstructed from every fill's signed notional and fees, so
+    realized losses and cumulative trading costs are included. Summing only the
+    unrealized PnL of currently-open positions would leave the kill switch blind
+    to realized losses -- a strategy that repeatedly opened and closed at a loss
+    would report zero drawdown forever.
+    """
+    signed_notional = case(
+        (Fill.side == "long", -(Fill.qty * Fill.price)),
+        else_=Fill.qty * Fill.price,
+    )
+    flow = session.execute(
+        select(func.coalesce(func.sum(signed_notional - Fill.fees), 0))
+    ).scalar()
+    equity = starting_capital + Decimal(str(flow or 0))
+
+    for p in session.execute(select(Position)).scalars().all():
+        if p.qty == Decimal("0"):
+            continue
+        last_bar = session.execute(
+            select(Bar).where(Bar.symbol == p.symbol)
+            .order_by(Bar.ts.desc()).limit(1)
+        ).scalar()
+        mark = last_bar.close if last_bar is not None else p.avg_entry
+        equity += mark * p.qty
+
+    return equity
 
 
 class RiskMonitor:
