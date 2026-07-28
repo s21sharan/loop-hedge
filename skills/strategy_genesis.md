@@ -31,9 +31,14 @@ with the `statistics` or `numpy` modules.
 ## Signal shape
 Each signal returned must be a dict:
 ```python
-{"symbol": str, "side": "buy" | "sell", "size_pct": float, "ts": datetime}
+{"symbol": str, "side": "long" | "short", "size_pct": float, "ts": datetime}
 ```
 `ts` should be the bar's `ts` at which the signal fires (use `bar.ts`, not a string).
+
+The side vocabulary is `"long"` (add long exposure — a buy that opens or grows a
+long position) and `"short"` (add short exposure — a sell that opens/grows a
+short, or closes a long). `"buy"` and `"sell"` are NOT valid — they will be
+silently mis-accounted by the simulator and risk monitor.
 
 ## Constraints
 - Must respect `risk_rules.md` (size cap, leverage, no shorting on first version).
@@ -65,7 +70,7 @@ def generate_signals(bars, hyperparams):
         if z <= -1.8:
             signals.append({
                 "symbol": bars[i].symbol,
-                "side": "buy",
+                "side": "long",
                 "size_pct": hp["size_pct"],
                 "ts": bars[i].ts,
             })
