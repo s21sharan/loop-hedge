@@ -12,10 +12,14 @@ class Base(DeclarativeBase):
 
 M20_8 = Numeric(20, 8)
 
+# Wide enough for Kalshi event tickers (e.g. KXHIGHNY-26JUL28-B82.5) and
+# Polymarket CLOB token IDs, which are uint256 values rendered in decimal.
+SYMBOL_LEN = String(96)
+
 
 class Bar(Base):
     __tablename__ = "bars"
-    symbol: Mapped[str] = mapped_column(String(20), primary_key=True)
+    symbol: Mapped[str] = mapped_column(SYMBOL_LEN, primary_key=True)
     timeframe: Mapped[str] = mapped_column(String(8), primary_key=True)
     ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), primary_key=True)
     open: Mapped[Decimal] = mapped_column(M20_8)
@@ -32,7 +36,7 @@ class Signal(Base):
     ts_created: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC))
     strategy_id: Mapped[str] = mapped_column(String(64))
-    symbol: Mapped[str] = mapped_column(String(20))
+    symbol: Mapped[str] = mapped_column(SYMBOL_LEN)
     side: Mapped[str] = mapped_column(String(8))     # long | short | flat
     size_pct: Mapped[Decimal] = mapped_column(M20_8)
     status: Mapped[str] = mapped_column(String(16))  # candidate|approved|rejected|executed|killed
@@ -49,7 +53,7 @@ class Fill(Base):
         ForeignKey("signals.id"), nullable=True
     )
     ts: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-    symbol: Mapped[str] = mapped_column(String(20))
+    symbol: Mapped[str] = mapped_column(SYMBOL_LEN)
     side: Mapped[str] = mapped_column(String(8))
     qty: Mapped[Decimal] = mapped_column(M20_8)
     price: Mapped[Decimal] = mapped_column(M20_8)
@@ -59,7 +63,7 @@ class Fill(Base):
 
 class Position(Base):
     __tablename__ = "positions"
-    symbol: Mapped[str] = mapped_column(String(20), primary_key=True)
+    symbol: Mapped[str] = mapped_column(SYMBOL_LEN, primary_key=True)
     qty: Mapped[Decimal] = mapped_column(M20_8)
     avg_entry: Mapped[Decimal] = mapped_column(M20_8)
     unrealized_pnl: Mapped[Decimal] = mapped_column(M20_8)

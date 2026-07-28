@@ -415,16 +415,22 @@ paper-trading competitions (mock money — a native fit). Both cost nothing but 
 
 ### 5.1 Bugs and gaps found by direct code inspection
 
-| # | Issue | Location | Impact |
-|---|---|---|---|
-| 1 | **Multi-symbol backtests mismark equity.** `sim.equity({bar.symbol: bar.close})` passes only the current bar's symbol; the simulator falls back to `avg_entry` for anything missing, so every other open position shows zero unrealized PnL. | `backtest/engine.py:64`, `ledger/simulator.py:77` | Any portfolio/cross-sectional strategy backtests wrong. Blocks the highest-leverage lever (breadth). |
-| 2 | **Sharpe annualization assumes a 24h day and 252-day year.** | `backtest/engine.py:78-79` | Understates crypto Sharpe ~17% (should be 365 days); would inflate equity Sharpe ~1.9× (claims 288 5-min bars/day when an RTH session has 78). |
-| 3 | **No causality enforcement.** `strategy_callable(bars, hyperparams)` receives the *entire* bar list up front and is trusted to return correctly-timestamped signals. | `backtest/engine.py:40` | A genesis agent optimizing for pass rate can use future bars. The checker would approve it. **Highest-priority fix.** |
-| 4 | **Promotion gates far too loose.** `SHARPE_THRESHOLD=1.0`, `T_STAT_THRESHOLD=1.5`, `MIN_TRADES=30`. | `backtest/engine.py:14-17` | t≥1.5 is α≈6.7%; the gate admits ~1 in 15 worthless strategies. 30 trades provides essentially no protection. At 10 candidates/day this promotes ~244 junk strategies/year. |
-| 5 | **`Bar.symbol` is `String(20)`.** | `models.py:18` | A Kalshi ticker (`KXHIGHNY-26JUL28-B82.5`) is 22 chars; Polymarket CLOB token IDs are ~77. Overflows on day one for any event venue. |
-| 6 | **No instrument lifecycle anywhere in the schema.** No expiry, settlement value, or resolution timestamp. | `models.py` | Every Tier-1 recommendation resolves to a terminal value. Prerequisite refactor, not an add-on. |
-| 7 | **Flat-bps cost model.** | `simulator.py:45` | Fine for crypto; wrong shape for equities (per-share), futures (per-contract + multiplier), and event contracts. No instrument metadata table (tick size, lot size, multiplier). |
-| 8 | **Executor hardcodes `venue="simulator"`** when writing fills despite `binance_testnet` being configured. | `executor.py:56,174` | The testnet path may not be wired end-to-end. |
+Items 1–5, 8, 9, 10 were **fixed** on 2026-07-28; items 6 and 7 remain open by
+design, as they are feature builds for asset classes not yet chosen. Items 9 and 10
+were uncovered while writing regression tests for item 1.
+
+| # | Issue | Location | Impact | Status |
+|---|---|---|---|---|
+| 1 | **Multi-symbol backtests mismark equity.** `sim.equity({bar.symbol: bar.close})` passes only the current bar's symbol; the simulator falls back to `avg_entry` for anything missing, so every other open position shows zero unrealized PnL. Signals were also routed to `bar.symbol` rather than their own `symbol` field. | `backtest/engine.py:64`, `ledger/simulator.py:77` | Any portfolio/cross-sectional strategy backtests wrong. Blocks the highest-leverage lever (breadth). | **Fixed** — engine steps distinct timestamps with a running per-symbol mark map |
+| 2 | **Sharpe annualization assumes a 24h day and 252-day year.** | `backtest/engine.py:78-79` | Understates crypto Sharpe ~17% (should be 365 days); would inflate equity Sharpe ~1.9× (claims 288 5-min bars/day when an RTH session has 78). | **Fixed** — factor derived from observed sampling rate over the calendar span |
+| 3 | **No causality enforcement.** `strategy_callable(bars, hyperparams)` receives the *entire* bar list up front and is trusted to return correctly-timestamped signals. | `backtest/engine.py:40` | A genesis agent optimizing for pass rate can use future bars. The checker would approve it. | **Fixed** — `detect_lookahead()` re-runs on a truncated prefix and rejects on divergence |
+| 4 | **Promotion gates far too loose.** `SHARPE_THRESHOLD=1.0`, `T_STAT_THRESHOLD=1.5`, `MIN_TRADES=30`. | `backtest/engine.py:14-17` | t≥1.5 is α≈6.7%; the gate admits ~1 in 15 worthless strategies. At 10 candidates/day this promotes ~244 junk strategies/year. | **Fixed** — 1.5 / 3.0 / 100; drawdown gate now bound to the live kill switch |
+| 5 | **`Bar.symbol` is `String(20)`.** | `models.py:18` | A Kalshi ticker (`KXHIGHNY-26JUL28-B82.5`) is 22 chars; Polymarket CLOB token IDs are ~77. Overflows on day one for any event venue. | **Fixed** — widened to 96 across all four tables, migration `003` |
+| 6 | **No instrument lifecycle anywhere in the schema.** No expiry, settlement value, or resolution timestamp. | `models.py` | Every Tier-1 recommendation resolves to a terminal value. Prerequisite refactor, not an add-on. | Open — Phase 2 |
+| 7 | **Flat-bps cost model.** | `simulator.py:45` | Fine for crypto; wrong shape for equities (per-share), futures (per-contract + multiplier), and event contracts. No instrument metadata table. | Open — Phase 2 |
+| 8 | **Executor hardcodes `venue="simulator"`** when writing fills despite `binance_testnet` being configured. | `executor.py:56,174` | The testnet path is not distinguishable in the fills table. | **Fixed** — venue threaded from `settings.live_venue` |
+| 9 | **`Simulator.equity()` understates equity by the full cost basis of open positions.** `cash` is already debited the notional at fill time, but `equity()` added back only `(mark − avg_entry) × qty` instead of `mark × qty`. | `ledger/simulator.py:77` | Opening a position dropped reported equity by its entire cost and closing it restored it — a large spurious drawdown on every round trip, corrupting Sharpe, max-DD, and executor position sizing. | **Fixed** — equity is cash plus position market value |
+| 10 | **The kill switch was blind to realized losses.** The risk monitor's equity was `starting_capital + unrealized PnL on open positions`; closed positions contribute nothing and `starting_capital` never changes. | `cli.py:82-93` | A strategy that repeatedly opened and closed at a loss would report **zero drawdown forever**, so the circuit breaker could never trip. | **Fixed** — `compute_equity()` reconstructs cash from all fill flows and fees |
 
 ### 5.2 The evaluation harness that should replace the current gate
 
