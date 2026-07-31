@@ -14,12 +14,10 @@ class ToolSpec:
 
 
 class AgentClient:
-    def __init__(self, model: str, system_prompt: str, tools: list[ToolSpec],
-                  effort: str | None = None):
+    def __init__(self, model: str, system_prompt: str, tools: list[ToolSpec]):
         self.model = model
         self.system_prompt = system_prompt
         self.tools = {t.name: t for t in tools}
-        self.effort = effort
         self._client = anthropic.Anthropic()
 
     def run(self, messages: list[dict], max_turns: int = 10) -> str:
@@ -36,8 +34,6 @@ class AgentClient:
                        "messages": cached_msgs, "max_tokens": 4096}
             if tool_schemas:
                 kwargs["tools"] = tool_schemas
-            if self.effort:
-                kwargs["output_config"] = {"effort": self.effort}
             resp = self._client.messages.create(**kwargs)  # type: ignore[call-overload]
             _log_usage(self.model, turn, resp)
 

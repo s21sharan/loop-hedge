@@ -119,8 +119,7 @@ def run_maker() -> None:
         sr = SkillsRepo(skills_root)
         lessons = LessonsLog(sr)
         reg = StrategyRegistry(get_session_factory(), sr)
-        client = AgentClient(model="claude-sonnet-4-6", system_prompt="",
-                              tools=[], effort="medium")
+        client = AgentClient(model="claude-sonnet-4-6", system_prompt="", tools=[])
         maker = MakerAgent(client, reg, sr, lessons, get_session_factory(),
                             bus, state_root / "maker_watermark.txt")
 
