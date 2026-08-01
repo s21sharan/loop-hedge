@@ -255,6 +255,47 @@ def run_checker() -> None:
     asyncio.run(_go())
 
 
+def run_kalshi() -> None:
+    import asyncio as _asyncio
+    from loophedge.db import get_session_factory
+    from loophedge.services.kalshi_client import (
+        fetch_candles, fetch_settlement, fetch_weather_markets,
+    )
+    from loophedge.services.kalshi_ingestor import KalshiIngestor
+
+    async def _go():
+        sf = get_session_factory()
+        ing = KalshiIngestor(
+            sf,
+            fetch_markets=fetch_weather_markets,
+            fetch_candles=fetch_candles,
+            fetch_settlement=fetch_settlement,
+            cities=["NY", "LAX"],  # matches ticker embedding: KXHIGHNY / KXHIGHLAX
+        )
+        last_sync = 0.0
+        while True:
+            import time
+            now = time.monotonic()
+            if now - last_sync > 3600:
+                try:
+                    n = await ing.sync_contracts_once()
+                    print(f"[kalshi] contract sync wrote {n} rows", flush=True)
+                except Exception as e:
+                    print(f"[kalshi] sync_contracts failed: {e}",
+                          file=sys.stderr, flush=True)
+                last_sync = now
+            try:
+                n = await ing.fetch_candles_once()
+                if n:
+                    print(f"[kalshi] wrote {n} candles", flush=True)
+            except Exception as e:
+                print(f"[kalshi] fetch_candles failed: {e}",
+                      file=sys.stderr, flush=True)
+            await _asyncio.sleep(300)  # 5 min
+
+    asyncio.run(_go())
+
+
 def run_genesis() -> None:
     from loophedge.agents.client import AgentClient
     from loophedge.agents.genesis import GenesisAgent
@@ -280,7 +321,7 @@ def run_genesis() -> None:
     asyncio.run(_go())
 
 
-_COMMANDS = ("ingest", "execute", "risk", "dashboard", "maker", "checker", "genesis")
+_COMMANDS = ("ingest", "execute", "risk", "dashboard", "maker", "checker", "genesis", "kalshi")
 
 
 def main(argv: list[str] | None = None) -> int:

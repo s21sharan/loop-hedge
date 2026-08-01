@@ -115,5 +115,17 @@ services:
       redis:    { condition: service_healthy }
     restart: on-failure:10
 
+  kalshi-ingestor:
+    image: loophedge:dev
+    command: ["kalshi"]
+    env_file: .env
+    volumes:
+      - ./skills:/app/skills
+      - ./state:/app/state
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis:    { condition: service_healthy }
+    restart: on-failure:10
+
 volumes:
   pg_data:
