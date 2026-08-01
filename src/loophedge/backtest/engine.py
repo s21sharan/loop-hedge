@@ -115,6 +115,7 @@ def run_backtest(
     hyperparams: dict[str, Any],
     starting_cash: Decimal = Decimal("100000"),
     check_lookahead: bool = True,
+    session_factory=None,
 ) -> BacktestResult:
     if not bars:
         return BacktestResult(Decimal("0"), Decimal("0"), Decimal("0"), 0, notes="empty bars")
@@ -142,7 +143,7 @@ def run_backtest(
     default_symbol = bars_sorted[0].symbol
     marks: dict[str, Decimal] = {}
 
-    sim = Simulator(starting_cash=starting_cash)
+    sim = Simulator(starting_cash=starting_cash, session_factory=session_factory)
     equity_curve: list[Decimal] = []
     trades = 0
     sig_idx = 0

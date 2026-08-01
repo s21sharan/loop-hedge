@@ -36,7 +36,8 @@ def run_execute() -> None:
         redis_client = redis.asyncio.from_url(settings.redis_url)
         bus = Bus(redis_client)
         sf = get_session_factory()
-        sim = Simulator(starting_cash=Decimal(str(settings.starting_capital_usd)))
+        sim = Simulator(starting_cash=Decimal(str(settings.starting_capital_usd)),
+                        session_factory=sf)
         latest_prices: dict = {}
         ex = Executor(bus, sf, sim, latest_prices=latest_prices,
                       venue=settings.live_venue)

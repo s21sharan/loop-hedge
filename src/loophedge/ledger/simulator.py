@@ -79,7 +79,7 @@ class Simulator:
     session_factory: object = None  # optional sessionmaker for contract lookup
     cash: Decimal = field(init=False)
     positions: dict[str, _Position] = field(default_factory=dict)
-    _venue_cache: dict[str, str] = field(default_factory=dict)
+    _venue_cache: dict[str, str] = field(init=False, default_factory=dict)
 
     def __post_init__(self):
         self.cash = self.starting_cash
@@ -131,6 +131,16 @@ class Simulator:
                     qty=qty, price=fill_price, fees=fees)
 
     def equity(self, mark_prices: dict[str, Decimal]) -> Decimal:
+        """Cash plus the market value of open positions.
+
+        apply_fill already debits the full notional from cash, so a position is
+        worth qty * mark -- not its unrealized PnL. Adding only the PnL would
+        drop reported equity by the whole cost basis the moment a position opens
+        and restore it on close, which reads as an enormous spurious drawdown.
+
+        A symbol with no mark is held at cost, which values it at break-even
+        rather than at zero.
+        """
         position_value = sum(
             mark_prices.get(p.symbol, p.avg_entry) * p.qty
             for p in self.positions.values()

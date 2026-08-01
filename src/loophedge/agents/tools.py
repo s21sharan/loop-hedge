@@ -65,7 +65,7 @@ def make_run_backtest(skills, session_factory):
                 .order_by(Bar.ts.desc()).limit(lookback_bars)
             ).scalars().all()
         bars = list(reversed(rows))
-        result = run_backtest(bars, module.generate_signals, module.DEFAULT_HYPERPARAMS)
+        result = run_backtest(bars, module.generate_signals, module.DEFAULT_HYPERPARAMS, session_factory=session_factory)
         return {
             "sharpe": str(result.sharpe),
             "max_dd_pct": str(result.max_dd_pct),
