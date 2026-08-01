@@ -257,6 +257,7 @@ def run_checker() -> None:
 
 def run_kalshi() -> None:
     import asyncio as _asyncio
+    import time
     from loophedge.db import get_session_factory
     from loophedge.services.kalshi_client import (
         fetch_candles, fetch_settlement, fetch_weather_markets,
@@ -274,7 +275,6 @@ def run_kalshi() -> None:
         )
         last_sync = 0.0
         while True:
-            import time
             now = time.monotonic()
             if now - last_sync > 3600:
                 try:

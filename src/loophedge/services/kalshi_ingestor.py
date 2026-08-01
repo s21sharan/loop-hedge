@@ -103,7 +103,12 @@ class KalshiIngestor:
                                        Contract.settlement_value.is_(None))
             ).scalars())
         for c in unsettled:
-            info = await self.fetch_settlement(c.symbol)
+            try:
+                info = await self.fetch_settlement(c.symbol)
+            except Exception as e:
+                print(f"[kalshi-ingestor] fetch_settlement({c.symbol}) failed: {e}",
+                      flush=True)
+                continue
             if info and info["settled"]:
                 with self.session_factory() as s:
                     row = s.get(Contract, c.symbol)
