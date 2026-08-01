@@ -16,7 +16,11 @@ down_revision = "003"
 
 
 def upgrade():
-    # Check if tables already exist (e.g., from migration 001's create_all)
+    # NOTE: migration 001 uses Base.metadata.create_all(), which now also
+    # picks up the models added in later migrations (Contract, WeatherForecast).
+    # The if-not-exists guards below prevent duplicate CREATE TABLE errors when
+    # running `alembic upgrade head` from an empty DB. The proper fix is to
+    # rewrite migration 001 with explicit DDL — deferred as out of scope.
     inspector = inspect(op.get_bind())
     existing_tables = inspector.get_table_names()
 
@@ -48,16 +52,14 @@ def upgrade():
                                 name="uq_weather_forecast_key"),
         )
 
-    # Backfill contract rows for existing crypto symbols so cost lookups work.
-    # Check if data already exists first
-    conn = op.get_bind()
-    result = conn.execute(sa.text("SELECT COUNT(*) FROM contracts"))
-    if result.scalar() == 0:
-        op.execute(
-            "INSERT INTO contracts (symbol, venue, contract_metadata) VALUES "
-            "('BTCUSDT', 'binance_us', '{}'), "
-            "('ETHUSDT', 'binance_us', '{}')"
-        )
+    # Backfill crypto contract rows. ON CONFLICT DO NOTHING makes this
+    # idempotent even if one of the two rows already exists.
+    op.execute(sa.text(
+        "INSERT INTO contracts (symbol, venue, contract_metadata) VALUES "
+        "('BTCUSDT', 'binance_us', '{}'), "
+        "('ETHUSDT', 'binance_us', '{}') "
+        "ON CONFLICT (symbol) DO NOTHING"
+    ))
 
 
 def downgrade():
