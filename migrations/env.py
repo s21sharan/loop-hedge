@@ -5,7 +5,9 @@ from loophedge.config import get_settings
 from loophedge.models import Base
 
 config = context.config
-config.set_main_option("sqlalchemy.url", get_settings().database_url)
+# Only load settings if sqlalchemy.url is not already set (e.g., by test fixtures)
+if not config.get_main_option("sqlalchemy.url"):
+    config.set_main_option("sqlalchemy.url", get_settings().database_url)
 target_metadata = Base.metadata
 
 

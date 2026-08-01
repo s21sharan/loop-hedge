@@ -116,3 +116,33 @@ class RiskEvent(Base):
     kind: Mapped[str] = mapped_column(String(64))
     payload: Mapped[dict] = mapped_column(JSON, default=dict)
     actions_taken: Mapped[dict] = mapped_column(JSON, default=dict)
+
+
+class Contract(Base):
+    __tablename__ = "contracts"
+    symbol: Mapped[str] = mapped_column(SYMBOL_LEN, primary_key=True)
+    venue: Mapped[str] = mapped_column(String(32))
+    open_ts: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    close_ts: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    resolution_ts: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    settlement_value: Mapped[Decimal | None] = mapped_column(M20_8, nullable=True)
+    resolution_source: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    contract_metadata: Mapped[dict] = mapped_column(JSON, default=dict)
+
+
+class WeatherForecast(Base):
+    __tablename__ = "weather_forecasts"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    city: Mapped[str] = mapped_column(String(8))
+    forecast_ts: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    valid_ts: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    temp_mean_c: Mapped[Decimal] = mapped_column(Numeric(6, 2))
+    temp_std_c: Mapped[Decimal] = mapped_column(Numeric(6, 2))
+    source: Mapped[str] = mapped_column(String(32))
+
+    __table_args__ = (
+        __import__("sqlalchemy").UniqueConstraint(
+            "city", "forecast_ts", "valid_ts", "source",
+            name="uq_weather_forecast_key"
+        ),
+    )
