@@ -85,6 +85,25 @@ Live in `~/loop-hedge/.env` on the droplet — never in git. Notable keys:
 - **Genesis proposes every 4h**, checker sweeps every 30 min, maker ticks every 15 min. Maker only calls the LLM when at least one strategy is active.
 - **Kalshi/Polymarket work is in progress.** See `docs/research/2026-07-28-*.md` for the roadmap. Cycle 1 (Contract lifecycle + Kalshi ingester + Open-Meteo + backtest + agent-loop integration) is being designed but not yet implemented.
 
+## Timeframe migration (1h bars) — as of 2026-08-01
+
+**Change:** Migrated from 5m to 1h bars to achieve profitable strategy discovery.
+
+**Rationale:** At 5m with 30bp round-trip costs, strategies need IC ≥ 2.44 to break even (impossible; IC is a correlation, max 1.0). At 1h, breakeven IC drops to 0.70 (achievable with realistic signal quality). See `docs/research/2026-07-28-asset-class-expansion.md` §1 for the math.
+
+**What changed on the VPS:**
+- `.env`: `BAR_TIMEFRAME=5m` → `BAR_TIMEFRAME=1h`
+- Backfilled 8,760 bars (365 days) of 1h OHLCV from Binance `api.binance.us`
+- Data-ingestor, genesis, checker restarted
+
+**To re-run the backfill** (if bars are lost):
+```bash
+docker compose run --rm --entrypoint python data-ingestor scripts/backfill_historical_bars.py \
+  --symbol BTCUSDT --timeframe 1h --days 365 --base-url https://api.binance.us
+```
+
+**What to expect:** Genesis's next proposals (every 4h from restart) will be 1h strategies. Existing 5m strategies in `pending` will be re-evaluated by checker on 1h data and likely still fail (they were optimized for micro-scale moves). New strategies will have room to work.
+
 ## Where to look for context
 
 - `docs/research/2026-07-28-asset-class-expansion.md` — 623-line research doc: statistical framing, promotion-gate math, why 1-5m crypto is arithmetically unprofitable at retail cost, ranked venue recommendations
