@@ -25,7 +25,7 @@ def test_sell_increases_cash_closes_position():
 def test_fees_deducted_from_cash():
     sim = Simulator(starting_cash=Decimal("100000"))
     fill = sim.apply_fill("BTCUSDT", "long", Decimal("1"), Decimal("60000"),
-                          datetime.now(UTC), fee_bps=Decimal("10"))
+                          datetime.now(UTC))
     # fees on slipped fill price: 60000 * 1.0005 * 0.001 = 60.03
     assert fill.fees == Decimal("60.03000000")
 
